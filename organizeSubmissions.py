@@ -19,10 +19,12 @@
 # In its current state, the structure must be a folder containing zip files that contain zip files
 # Still (probably) a work in progress at the moment (I spent *way* too much time on this so far...)
 #
+# If a single person's submission is taking too long, they probably submitted node_modules 🙄
+#
 # Platforms: 
 # WSL2: Works, but quite slow due if used with the Windows filesystem. 
 # WSL1: Works and is ~10x faster than WSL2
-# Powershell: Doesn't really work. Files aren't deleted properly. This may be due to shutil
+# Powershell: Doesn't really work. Files aren't deleted properly. This may be due to the unix-specific python commands I use
 # Other platforms: idk lol
 #
 #include <stdio.h>
@@ -41,7 +43,11 @@ import zipfile as zippy
 import sys, os, shutil, time
 from pathlib import Path
 
-file_filter_type="ext-test"
+fix_names = True
+# True: remove duplicate person's name from file names at the end
+# False: Do not change names at the end
+
+file_filter_type="except"
 # file_filter_type: 
 # files always_delete will always be deleted, except when true-all is selected
 # 1. "only":     Only include certain files (listed in file_inclusions) from the student zips in the target folder
@@ -51,9 +57,40 @@ file_filter_type="ext-test"
 # 5. "ext-test": Only keep files with a certain extension, but remove files with '.test' in the name
 # 6. "true-all": always_delete does not apply here. ALL files are kept (BAD idea. Will keep node_modules and .git folders)
 
-file_exclusions=["lab1.test.mjs","._lab1.mjs","._lab1.js","._lab1.test.mjs","__MACOSX",".git","._.git"] # files to not include in the zip
-file_inclusions=["lab1.mjs","lab1.js"]    # files to include
-always_delete=["__MACOSX",".git",".DS_Store","._.DS_Store","._.git"] # Delete these files no matter what
+file_exclusions=[       # files to not include in the zip
+    "lab1.test.mjs",    # lab 1
+    "._lab1.mjs",
+    "._lab1.js",
+    "._lab1.test.mjs",
+    "__MACOSX",
+    ".git",
+    "._.git",
+    "package.json",     # General
+    "package-lock.json",
+    "settings.js",      # MongoDB
+    "mongoConnection.js",
+    "mongoCollections.js",
+    "index.js",
+    "app.js",
+    "seed.js",
+    "events.js",
+    "atten"
+    ] 
+file_inclusions=[        # files to include
+    "events.js",
+    "attendees.js",
+    "helpers.js"
+    ]
+always_delete=[         # Delete these files no matter what
+    "__MACOSX",
+    ".git",
+    ".DS_Store",
+    "._.DS_Store",
+    "._.git",
+    "package.json",
+    "package-lock.json",
+    "node_modules"
+    ] 
 extensions=["mjs","js"]     #Extensions to preserve
 teststring=".test"
 
@@ -104,22 +141,26 @@ def delete(path):       #I need all these try/excepts because I don't want it to
     except:
         pass
 
-def flatten(directory):     #Works, but may skip files that are the same name
+def flatten(directory):
     '''Flattens a directory. Takes all files in sub-dorectories and brings them to the top level'''
+    # https://amitd.co/code/python/flatten-a-directory
     for dirpath, _, filenames in os.walk(directory, topdown=False):
         for filename in filenames:
+            i = 0
             source = os.path.join(dirpath, filename)
             target = os.path.join(directory, filename)
-            if source!=target:
-                try:
-                    shutil.move(source, target)
-                except:
-                    pass
-        if dirpath != directory:        # removing empty directories
+            while os.path.exists(target):
+                i += 1
+                file_parts = os.path.splitext(os.path.basename(filename))
+                target = os.path.join(directory,file_parts[0] + "_" + str(i) + file_parts[1])
+                # print(target)
+            
+            shutil.move(source, target)
+        if dirpath != directory:
             os.rmdir(dirpath)
 
 #the path stuff is inspired from here: https://csatlas.com/python-list-directory/
-def search_and_destroy(path, filter):
+def search_and_destroy(path, filter):       # I love this function name :3
     '''Recursively searches for files to delete. Deletes files according to specified filter'''
     if filter!='true-all':
         for p in Path(path).rglob('*'):     # rglob('*') recursively lists all the files
@@ -127,20 +168,28 @@ def search_and_destroy(path, filter):
                 delete(str(p))
     if filter=="only":                              #Delete all files that don't match file_inclusions
         for p in Path(path).rglob('*'):
+            if "node_modules" in str(p):
+                delete(str(p))
             if str(p).split('/')[-1] not in file_inclusions and os.path.isdir(str(p))==False:
                 delete(str(p))
     elif filter=="except":                          #Only delete files that match file_exclusions
         for p in Path(path).rglob('*'): 
+            if "node_modules" in str(p):
+                delete(str(p))
             if str(p).split('/')[-1] in file_exclusions and os.path.isdir(str(p))==False:
                 delete(str(p))
     elif filter=="all":        #We keep all files here (except always_delete, which we already took care of, so do nothing)
         pass
     elif filter=="ext":                             #Only keep files whose extension matches extensions
         for p in Path(path).rglob('*'):
+            if "node_modules" in str(p):
+                delete(str(p))
             if str(p).split('.')[-1] not in extensions and os.path.isdir(str(p))==False:
                 delete(str(p))
     elif filter=="ext-test":                        #Same as above, but delete files with teststring in the name
         for p in Path(path).rglob('*'):
+            if "node_modules" in str(p):
+                delete(str(p))
             if (str(p).split('.')[-1] not in extensions or teststring in str(p).split('/')[-1]) and os.path.isdir(str(p))==False:
                 delete(str(p))
 
@@ -158,10 +207,15 @@ def handle_files():
                     flatten(folder_path+'/temp')                    #take files out of nested folders
                     search_and_destroy(folder_path+'/temp',file_filter_type)    #in case any spicy files got left behind
                     for files in os.listdir(folder_path+'/temp'):   #I have no idea why I need this
-                        newpath = folder_path+'/temp/'+files        
+                        newpath = folder_path+'/temp/'+files   
+                        # print(newpath)     
                     for filtered_files in os.listdir(folder_path+'/temp'):
                         #now the temp folder has only the files we want
-                        newname = folder_path+'/temp/'+submission_zips.split('_')[0]+'_'+filtered_files
+                        filename = (submission_zips.split('_')[0]+'_'+filtered_files)
+                        # print("old:",filename)
+                        # filename="_".join(list(dict.fromkeys(filename.split("_"))))
+                        # print("new:",filename)
+                        newname = folder_path+'/temp/'+filename
                         try:
                             os.rename(newpath,newname)
                             shutil.move(newname,folder_path+'/'+moss_folder+'/')
@@ -172,8 +226,15 @@ def handle_files():
             #This print doesn't really work if there's only 1 zip
             print(f"{moss_ready_count}/{unzipped_count} zips have been unzipped and processed")
 
-
 handle_files()
+
+# Doesn't work
+if fix_names==True: 
+    for files in os.listdir(folder_path+'/'+moss_folder):
+        name = "_".join(list(dict.fromkeys(files.split("_"))))
+        # print(name)
+        # os.rename(folder_path+'/'+moss_folder+'/'+files,name)
+
 
 #get rid of temp folder at end
 shutil.rmtree(folder_path+"/temp")
@@ -297,3 +358,4 @@ xkOOOO000Oxl:::::::;,,:dOKXXXOooollc:::::::::;,''.... ......';:clolc;'.';cooolc:
                                      ......                      ...                           .....
                                       ......                     ..                           ......
 """
+#Love you Patty Hill
