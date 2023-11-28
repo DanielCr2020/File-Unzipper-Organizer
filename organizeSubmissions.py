@@ -44,7 +44,7 @@ import sys, os, shutil, time
 from pathlib import Path
 
 fix_names = True
-# True: remove duplicate person's name from file names at the end
+# True: remove duplicated person's name from file names at the end. Example: craidaniel_craigdaniel_routes_1 -> craigdaniel_routes_1
 # False: Do not change names at the end
 
 file_filter_type="except"
@@ -210,9 +210,6 @@ def handle_files():
                     for filtered_files in os.listdir(folder_path+'/temp'):
                         #now the temp folder has only the files we want
                         filename = (submission_zips.split('_')[0]+'_'+filtered_files)
-                        # print("old:",filename)
-                        # filename="_".join(list(dict.fromkeys(filename.split("_"))))
-                        # print("new:",filename)
                         newname = folder_path+'/temp/'+filename
                         try:
                             os.rename(newpath,newname)
@@ -226,12 +223,10 @@ def handle_files():
 
 handle_files()
 
-# Doesn't work
 if fix_names==True: 
     for files in os.listdir(folder_path+'/'+moss_folder):
-        name = "_".join(list(dict.fromkeys(files.split("_"))))
-        # print(name)
-        # os.rename(folder_path+'/'+moss_folder+'/'+files,name)
+        pathName = folder_path+'/'+moss_folder+'/'
+        os.rename(pathName+files,pathName+("_".join(list(dict.fromkeys(files.split("_"))))))
 
 
 #get rid of temp folder at end
