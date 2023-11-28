@@ -72,9 +72,7 @@ file_exclusions=[       # files to not include in the zip
     "mongoCollections.js",
     "index.js",
     "app.js",
-    "seed.js",
-    "events.js",
-    "atten"
+    "seed.js"
     ] 
 file_inclusions=[        # files to include
     "events.js",
