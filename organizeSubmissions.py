@@ -47,7 +47,7 @@ fix_names = True
 # True: remove duplicated person's name from file names at the end. Example: craidaniel_craigdaniel_routes_1 -> craigdaniel_routes_1
 # False: Do not change names at the end
 
-file_filter_type="except"
+file_filter_type="only"
 # file_filter_type: 
 # files always_delete will always be deleted, except when true-all is selected
 # 1. "only":     Only include certain files (listed in file_inclusions) from the student zips in the target folder
@@ -72,12 +72,16 @@ file_exclusions=[       # files to not include in the zip
     "mongoCollections.js",
     "index.js",
     "app.js",
-    "seed.js"
-    ] 
-file_inclusions=[        # files to include
-    "events.js",
+    "seed.js",
+    ".gitignore",
     "attendees.js",
     "helpers.js"
+    ] 
+file_inclusions=[        # files to include
+    "main.js",
+    # "routesApi.js",
+    # "webpage.html",
+    # "app.js"
     ]
 always_delete=[         # Delete these files no matter what
     "__MACOSX",
@@ -87,7 +91,8 @@ always_delete=[         # Delete these files no matter what
     "._.git",
     "package.json",
     "package-lock.json",
-    "node_modules"
+    "node_modules",
+    ".gitignore"
     ] 
 extensions=["mjs","js"]     #Extensions to preserve
 teststring=".test"
@@ -151,14 +156,13 @@ def flatten(directory):
                 i += 1
                 file_parts = os.path.splitext(os.path.basename(filename))
                 target = os.path.join(directory,file_parts[0] + "_" + str(i) + file_parts[1])
-                # print(target)
-            
             shutil.move(source, target)
         if dirpath != directory:
             os.rmdir(dirpath)
 
 #the path stuff is inspired from here: https://csatlas.com/python-list-directory/
-def search_and_destroy(path, filter):       # I love this function name :3
+#the 'final' parameter and its usage as added by jrose0116
+def search_and_destroy(path, filter, final=False):       # I love this function name :3
     '''Recursively searches for files to delete. Deletes files according to specified filter'''
     if filter!='true-all':
         for p in Path(path).rglob('*'):     # rglob('*') recursively lists all the files
@@ -168,8 +172,12 @@ def search_and_destroy(path, filter):       # I love this function name :3
         for p in Path(path).rglob('*'):
             if "node_modules" in str(p):
                 delete(str(p))
-            if str(p).split('/')[-1] not in file_inclusions and os.path.isdir(str(p))==False:
+            if str(p).split('/')[-1].replace("_1", "") not in file_inclusions and os.path.isdir(str(p))==False:
                 delete(str(p))
+            elif str(p).split('/')[-2] == "data" and final:
+                os.rename(str(p), os.path.join(str(p.parent), f"{str(p).split('/')[-1][:-3]}_data.js"))
+            elif str(p).split('/')[-2] == "routes" and final:
+                os.rename(str(p), os.path.join(str(p.parent), f"{str(p).split('/')[-1][:-3]}_routes.js"))
     elif filter=="except":                          #Only delete files that match file_exclusions
         for p in Path(path).rglob('*'): 
             if "node_modules" in str(p):
@@ -201,9 +209,9 @@ def handle_files():
             with zippy.ZipFile(folder_path+'/'+submission_zips,"r") as each_zip:
                 for file_name in each_zip.namelist():
                     each_zip.extract(file_name,folder_path+'/temp')
-                    search_and_destroy(folder_path+'/temp',file_filter_type)
+                    search_and_destroy(folder_path+'/temp',file_filter_type, True)
                     flatten(folder_path+'/temp')                    #take files out of nested folders
-                    search_and_destroy(folder_path+'/temp',file_filter_type)    #in case any spicy files got left behind
+                    # search_and_destroy(folder_path+'/temp',file_filter_type)    #in case any spicy files got left behind
                     for files in os.listdir(folder_path+'/temp'):   #I have no idea why I need this
                         newpath = folder_path+'/temp/'+files   
                         # print(newpath)     
@@ -222,6 +230,22 @@ def handle_files():
             print(f"{moss_ready_count}/{unzipped_count} zips have been unzipped and processed")
 
 handle_files()
+
+# This if statement code was added by jrose0116
+if file_filter_type == "only":
+    for files in os.listdir(folder_path+'/'+moss_folder):
+        if files.endswith("_data.js"):
+            try:
+                os.makedirs(os.path.join(folder_path + '/' + moss_folder, "data"), exist_ok=True)
+                shutil.move(os.path.join(folder_path + "/" + moss_folder, files), os.path.join(folder_path + '/' + moss_folder, "data"))
+            except:
+                pass
+        elif files.endswith("_routes.js"):
+            try:
+                os.makedirs(os.path.join(folder_path + '/' + moss_folder, "routes"), exist_ok=True)
+                shutil.move(os.path.join(folder_path + "/" + moss_folder, files), os.path.join(folder_path + '/' + moss_folder, "routes"))
+            except:
+                pass
 
 if fix_names==True: 
     for files in os.listdir(folder_path+'/'+moss_folder):
